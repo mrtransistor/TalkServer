@@ -1,6 +1,8 @@
 import java.io.*;
 import java.math.BigInteger;
 import java.net.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.awt.*;
 import java.awt.event.*;
 
@@ -11,10 +13,12 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Writer;
 
 
-public class TalkServer extends JFrame {
+public class TalkServer {
 	
 	/**serialVersionUID */
 	private static final long serialVersionUID = 1L;
@@ -29,16 +33,23 @@ public class TalkServer extends JFrame {
 	/**Fire Button */
 	private JButton buttonFire;
 	/** Ausgabestream für Netzwerkübertragung*/
-	private ObjectOutputStream output;
+	private ObjectOutputStream transmitConnectionInfoToClient;
 	/** Eingangsstream für Netzwerkübertragung */
 	private ObjectInputStream input;
 	/**ServerSocket Object */
-	private ServerSocket server = null;
+	private ServerSocket serverConnectionListener = null;
 	/** ClientSocket Object*/
-	private Socket connection = null; 
+	private Socket connection = null;
+	/**Arrays der Sessions zwischen Server und Client*/
+	private Socket[] sessionArray = new Socket[10];
+	
+	/** Array verfügbarer Ports */
+	boolean[] availablePorts = {true,true,true,true,true,true,true,true,true,true};
 	/**KryptoServer - Kryptomodul für Datenübertragung*/
 	KryptoServer cryptoModule;
 	
+	/** */
+	AskUserYesNo killHostPrompt;
 	/** Erzeugt Objekt der Klasse TalkServer, welches alle Funktionalitäten  
 	 * der Klasse zur Verfügung stellt und explizit die Anwenderoberfläche erzeugt.
 	 * Der Konstruktor erzeugt auch ein neues Objekt der Klasse KryptoServer 
@@ -47,20 +58,21 @@ public class TalkServer extends JFrame {
 	 * @param void - keine
 	 */
 	public TalkServer() {
-		super("AWIM- SERVER");
 		
 		cryptoModule= new KryptoServer(); //Kryptomodul erzeugen
 		
-		cryptoModule.rounds = (int) (Math.random() * 4 + 1);
+		//cryptoModule.rounds = (int) (Math.random() * 4 + 1); Verzicht auf Server
 		System.out.println("Rounds: " + cryptoModule.rounds);
 		drawServerGui();
 	}
 	
 	/**
-	 * 
+	 * private void drawServerGui() zeichnet ServerGui und wartet auf IOStreams
 	 */
 	private void drawServerGui() {
 		
+		JFrame chatGUI = new JFrame("ChatServer");
+		chatGUI.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		userText = new JTextField();
 		userText.setEditable(false);
 		//userText.setSize(550, 30);
@@ -89,7 +101,7 @@ public class TalkServer extends JFrame {
         buttonEncryptedSend = new JButton("crypt Send");
         buttonEncryptedSend.addActionListener( new ActionListener() {
         	public void actionPerformed( ActionEvent event ) {		  			 
-		  			sendMessageEncrypted(userText.getText() + "  +*+"); // Eingabe holen
+		  			sendMessageEncrypted(userText.getText()); // Eingabe holen
 		  			userText.setText(""); //reset Texteingabefeld
 		  		  }
 		  	} );
@@ -111,13 +123,13 @@ public class TalkServer extends JFrame {
     	buttonPanel.setVisible(true);
 		    	
     	//EingabeFeld hinzufügen zu JFrame
-    	add(userText, BorderLayout.PAGE_START);
+    	chatGUI.add(userText, BorderLayout.PAGE_START);
     	JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,buttonPanel,new JScrollPane(chatWindow) );
 		splitPane.setDividerLocation(115);
-    	add(splitPane, BorderLayout.CENTER);  //ChatWindow hinzufügen
-    	setLocation(175, 175);
-		setSize(550, 280);
-		setVisible(true);
+		chatGUI.add(splitPane, BorderLayout.CENTER);  //ChatWindow hinzufügen
+		chatGUI.setLocation(175, 175);
+		chatGUI.setSize(550, 280);
+		chatGUI.setVisible(true);
 	}
 	
 	/** startServer() startet die eigentliche Funktionalität des Servers.
@@ -126,35 +138,93 @@ public class TalkServer extends JFrame {
 	 * @return void - keine
 	 */
 	public void startServer() {
-		boolean schalter = true;
-		try {
-			server = new ServerSocket(3333, 10);
-			try{
-				while(schalter) {
-							aufVerbindungWarten();
-							startIOStreams();
-							schalter = whileSharingData();
-				}
-			}finally{
-				closeCrap();
-			}
-		}catch(IOException ioException){
-		ioException.printStackTrace();
-		}
-	showMessage("Server Shutdown... bye");
+		boolean alive = true;
+		
+							try {
+								aufVerbindungWarten();
+							} catch (IOException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}
+							/*startIOStreams();*/
+							//whileSharingData();
+							while(true) { }
+							
+	//showMessage("Server Shutdown... bye");
+	
 	}
 	
 	/**aufVerbindungenWarten() lauscht auf dem Serversocket bis eine Verbindung vom 
 	 * Client aufgebaut wird. Stellt dann die Verbindung her und gibt bei Erfolg 
 	 * eine Nachricht im Chatfenster aus (chatWindow)
 	 * @return void - keine
-	 */
-	private void aufVerbindungWarten() throws IOException {
-		showMessage("\nauf verbindung warten..."); 
-		connection = server.accept(); //Warten auf Verbindung durch Client
-		showMessage("\nverbunden zu " + connection.getInetAddress().getHostAddress());	
-		writeLogFile("\nverbunden zu " + connection.getInetAddress().getHostAddress(), new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
+	*/ 
+	private void aufVerbindungWarten()  throws IOException {
+		final ExecutorService clientProcessingPool = Executors.newFixedThreadPool(10);
+		
+		Runnable serverListener = new Runnable() {
+			public void run() {
+				try {
+				serverConnectionListener = new ServerSocket(3333,10);
+				
+					while(true) {
+						showMessage("\nauf verbindung warten..."); 
+						Socket clientSocket = serverConnectionListener.accept();
+						clientProcessingPool.submit(new ClientTask(clientSocket));
+						/**@Override*/	//Später Ausgaben von ShowMessage in VerbinundungsdatensAnzeigefeld ausgeben lassen
+						showMessage("\nverbunden zu " + clientSocket.getInetAddress().getHostAddress());	
+						writeLogFile("\nverbunden zu " + clientSocket.getInetAddress().getHostAddress(), new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
+					}
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+			}	
+		};
+		Thread ListenerThread = new Thread(serverListener);
+		ListenerThread.start();
+		
 	}
+	
+	
+	
+	private class ClientTask implements Runnable {
+		
+		private final Socket clientSocket;
+		private ClientTask(Socket clientSocket) {
+			this.clientSocket = clientSocket;
+		}
+		public void run() {
+			/**@Override Clientfunktionalität zu Server */
+			try {
+				ObjectInputStream sessionInputStream = new ObjectInputStream(this.clientSocket.getInputStream());
+				ObjectOutputStream sessionOutputStream = new ObjectOutputStream(this.clientSocket.getOutputStream());
+				sessionOutputStream.writeObject("Test");
+				sessionOutputStream.flush();
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+			
+			try {
+				whileSharingData();
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+			
+			
+			
+			try {
+				clientSocket.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	
 	
 	/**Erzeut einenOutput und einen Inputstream der den Datenaustausch
 	 * zum Client managt
@@ -163,8 +233,6 @@ public class TalkServer extends JFrame {
 	 */
 	private void startIOStreams() throws IOException {
 		
-		output = new ObjectOutputStream(connection.getOutputStream());
-		output.flush();
 		input = new ObjectInputStream(connection.getInputStream());
 		showMessage("\niostreams eingerichtet\n");
 		showMessage("---------Konversation beginnt--------");
@@ -202,14 +270,10 @@ public class TalkServer extends JFrame {
 				showMessage(message);	
 			}  //abschalten des servers nach Kondition
 			writeLogFile(message+"\n",new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
-		System.out.println(message.substring(22));
-		}while(!(!message.substring(22,30).equals("killhost") ^ !message.substring(22,32).equals("killclient")));
-		
-		if(message.substring(22,32).equals("killhost")) { //Server töten?
-		return false; //false tötet Server komplett
-		}
+		System.out.println(message.substring(26));
+		}while(!message.substring(22).equals("killclient"));
 		sendMessage("killclient");
-		return true; //Server überlebt
+		return true; //Server überlebt-> auf neue Verbindung warten
 	}
 	
 	//IOStreams und ClientConnection schließen
@@ -217,7 +281,7 @@ public class TalkServer extends JFrame {
 		showMessage("\nshutting down connections...");
 		ableToType(false);
 		try{
-			output.close();
+			transmitConnectionInfoToClient.close();
 			input.close();
 			connection.close();
 		}catch(IOException ioException) {
@@ -227,8 +291,8 @@ public class TalkServer extends JFrame {
 	
 	private void hiddenSend() {
 		try{
-			output.writeObject(cryptoModule.startRSA() + "+" + cryptoModule.n + cryptoModule.rounds);
-			output.flush();
+			transmitConnectionInfoToClient.writeObject(cryptoModule.startRSA() + "+" + cryptoModule.n + cryptoModule.rounds);
+			transmitConnectionInfoToClient.flush();
 		}catch(IOException ioException){
 			ioException.printStackTrace();
 		}
@@ -237,8 +301,8 @@ public class TalkServer extends JFrame {
 	//Nachricht senden
 	public void sendMessage(String message) {
 		try{
-			output.writeObject("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + message);
-			output.flush();
+			transmitConnectionInfoToClient.writeObject("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + message);
+			transmitConnectionInfoToClient.flush();
 			writeLogFile("server[" + new java.util.Date().toString().substring(4,16) + "]:\n"+ message + "\n", new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
 			showMessage("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + message);
 		}catch(IOException ioException){
@@ -250,10 +314,10 @@ public class TalkServer extends JFrame {
 	public void sendMessageEncrypted(String message) {
 			
 		try{
-			output.writeObject("cr1" + cryptoModule.encryptMessage("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + message, cryptoModule.rounds));
-			output.flush();
-			writeLogFile("server[" + new java.util.Date().toString().substring(4,16) + "]:\n"+ message + "\n", new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
-			showMessage("server[" + new java.util.Date().toString().substring(4,16) + "]:\n"+ message);
+			transmitConnectionInfoToClient.writeObject("cr1" + cryptoModule.encryptMessage("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n" + message, cryptoModule.rounds));
+			transmitConnectionInfoToClient.flush();
+			writeLogFile("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n"+ message + "\n", new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
+			showMessage("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n"+ message);
 		}catch(IOException ioException){
 			ioException.printStackTrace();
 		}
