@@ -50,7 +50,10 @@ public class TalkServer {
 	volatile boolean sender = false;
 	//Entscheidung für crypted Send
 	volatile boolean xSender = false;
+	volatile boolean handOverX = false;
+	volatile boolean handOver = false;
 	volatile String sendMessage = "";
+	volatile String handOverMessage = "";
 	
 	//Globaler SubKey
 	BigInteger globalKey;
@@ -188,7 +191,8 @@ public class TalkServer {
 		}
 		/*startIOStreams();*/
 		//whileSharingData();
-		while(true) { }							
+		while(alive) { //stirbt niemals (gui hängt daran)
+			}							
 	//showMessage("Server Shutdown... bye");
 	}
 	
@@ -243,6 +247,7 @@ public class TalkServer {
 		KryptoServer clientKrypto;
 		String inputMessage;
 		String outputMessage;
+		boolean outputThreadStatus = true;
 		
 		/** Konstruktor */
 		private ClientTask(Socket clientSocket) {
@@ -272,6 +277,7 @@ public class TalkServer {
 				clientSocket.close();
 				sessionInputStream.close();
 				sessionOutputStream.close();
+				outputThreadStatus = false;
 				showMessageAdmin("Verbindung beendet");
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
@@ -282,19 +288,26 @@ public class TalkServer {
 		
 		private void setupStreamsAndKrypto() {
 			try {
+				//Inputstream erzeugen
 				sessionInputStream = new ObjectInputStream(this.clientSocket.getInputStream());
 				sessionOutputStream = new ObjectOutputStream(this.clientSocket.getOutputStream());
 				sessionOutputStream.writeObject(rsaModule.e + "+" + rsaModule.n + rsaModule.rounds);
 				sessionOutputStream.flush();
+				//SUBKEY|CLIENTNAME einlesen
 				String name = (String) sessionInputStream.readObject();
-				BigInteger subKey = rsaModule.privateKeyDecrypt(new BigInteger(name.substring(0, name.indexOf('|'))), rsaModule.d, rsaModule.n);
+				//SubKey extrahieren und RSA-Verschlüsslung anwenden
+				final BigInteger subKey = rsaModule.privateKeyDecrypt(new BigInteger(name.substring(0, name.indexOf('|'))), rsaModule.d, rsaModule.n);
+				//CLIENTNAME wird extrahiert und gespeichert
 				name = name.substring(name.indexOf('|')+1); 
+				//TESTAUSGABEN
 				System.out.println("name: "+ name);
 				System.out.println("SubKey: " + subKey);
+				//KRYPTOMODUL FÜR CLIENT ERZEUGEN
 				clientKrypto = new KryptoServer(subKey) ;
+				//Verbindungausbau zum Client per Nachricht bestätigen "Sie sind jetzt verbunden"
 				sessionOutputStream.writeObject("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + "Sie sind jetzt verbunden.");
-				sessionOutputStream.flush();
-				showMessageAdmin("Sie sind verbunden...");
+				sessionOutputStream.flush(); //Senden
+				//showMessageAdmin("Sie sind verbunden...");
 				ableToType(true);
 			} catch (IOException e1) {
 				// TODO Auto-generated catch block
@@ -304,16 +317,70 @@ public class TalkServer {
 				e.printStackTrace();
 			}
 		}
-		//Nachricht senden
+		/**
+		 * public void sendMessage(String message) throws IOException.
+		 * Sie konsumiert einen String (Nachricht die versendet werden soll)
+		 * Der übergebende String wird über den aktuellen (Server:Client(n)] OutputStream
+		 * verschickt. 
+		 * @param message
+		 */
 		public void sendMessage(String message) {
 			try{
 				sessionOutputStream.writeObject("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + message);
 				sessionOutputStream.flush();
 				//writeLogFile("server[" + new java.util.Date().toString().substring(4,16) + "]:\n"+ message + "\n", new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
-				showMessage("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + message);
+				//showMessage("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + message);
 			}catch(IOException ioException){
 				ioException.printStackTrace();
 			}
+		}
+		
+		/**
+		 * public void sendMessageEncrypted(String message) throws IOException.
+		 * Sie konsumiert einen String (Nachricht die versendet werden soll)
+		 * Der übergebende String wird vom aktullen (Server:Client(n)] KryptoModul
+		 * verschlüsselt und über den aktuellen (Server:Client(n)] OutputStream
+		 * verschickt.  
+		 * 
+		 * @param message
+		 */
+		public void sendMessageEncrypted(String message) throws IOException {
+				sessionOutputStream.writeObject("cr1" + clientKrypto.encryptMessage("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n" + message, rsaModule.rounds));
+				sessionOutputStream.flush();
+				//writeLogFile("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n"+ message + "\n", new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
+				//showMessage("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n"+ message);
+		}
+		
+		/**
+		 * public void handOverEncrypted(String message) throws IOException.
+		 * Sie konsumiert einen String (Nachricht die versendet werden soll)
+		 * Der übergebende String wird vom aktullen (Server:Client(n)] KryptoModul
+		 * verschlüsselt und über den aktuellen (Server:Client(n)] OutputStream
+		 * verschickt.  
+		 * 
+		 * @param message
+		 */
+		public void handOverEncrypted(String message) throws IOException {
+				sessionOutputStream.writeObject("cr1" + clientKrypto.encryptMessage(message, rsaModule.rounds));
+				sessionOutputStream.flush();
+				writeLogFile(message, new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
+				showMessage(message);
+		}
+		
+		/**
+		 * public void handOver(String message) throws IOException.
+		 * Sie konsumiert einen String (Nachricht die versendet werden soll)
+		 * Der übergebende String wird vom aktullen (Server:Client(n)] KryptoModul
+		 * verschlüsselt und über den aktuellen (Server:Client(n)] OutputStream
+		 * verschickt.  
+		 * 
+		 * @param message
+		 */
+		public void handOver(String message) throws IOException {
+				sessionOutputStream.writeObject(message);
+				sessionOutputStream.flush();
+				writeLogFile(message, new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
+				showMessage(message);
 		}
 		
 		/**
@@ -331,32 +398,27 @@ public class TalkServer {
 					showMessageAdmin("\nVerbindungsfehler zu " + clientSocket.getLocalAddress().getHostAddress());
 					return false;
 				}
+				if(inputMessage.equals("")) {
+					System.out.println("keine Message");
+				}else {
 				if(inputMessage.startsWith("cr1")) {
 					inputMessage = clientKrypto.decryptMessage(inputMessage.substring(3), rsaModule.rounds);
+					handOverMessage = inputMessage;
+					handOverX = true;
 					showMessage(inputMessage);
 				}else{
-					showMessage(inputMessage);	
-				}  //abschalten des servers nach Kondition
-				writeLogFile(inputMessage + "\n",new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
+					handOverMessage = inputMessage;
+					handOver = true;	
+					showMessage(inputMessage);
+				}  
+				}
+				//writeLogFile(inputMessage + "\n",new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
 			System.out.println(inputMessage.substring(26));
 			}while(!inputMessage.substring(22).equals("killclient"));
 			sendMessage("killclient");
 			return true; //Server überlebt-> auf neue Verbindung warten
 		}
 		
-		//Nachricht senden
-		public void sendMessageEncrypted(String message) {
-				
-			try{
-				sessionOutputStream.writeObject("cr1" + clientKrypto.encryptMessage("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n" + message, rsaModule.rounds));
-				sessionOutputStream.flush();
-				writeLogFile("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n"+ message + "\n", new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
-				showMessage("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n"+ message);
-			}catch(IOException ioException){
-				ioException.printStackTrace();
-			}
-			
-		}
 		
 		private class OutputStreamTask implements Runnable {
 			public OutputStreamTask() {
@@ -364,16 +426,39 @@ public class TalkServer {
 			
 			public void run() {
 				//System.out.println("TOT");
-				boolean schalter = true;
-				while(schalter) {
+				
+				while(outputThreadStatus) {
 					if(sender){
 						//System.out.println("inrun: " + sendMessage);
 						sendMessage(sendMessage);
 						sender = false;
 					}
 					if(xSender) {
-						sendMessageEncrypted(sendMessage);
+						try {
+							sendMessageEncrypted(sendMessage);
+						} catch (IOException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
 						xSender = false;
+					}
+					if(handOverX) {
+						try {
+							handOverEncrypted(handOverMessage);
+						} catch (IOException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+						handOverX = false;
+					}
+					if(handOver) {
+						try {
+							handOver(handOverMessage);
+						} catch (IOException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+						handOver = false;
 					}
 				}
 				
