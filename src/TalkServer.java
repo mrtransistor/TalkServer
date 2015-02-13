@@ -22,6 +22,9 @@ public class TalkServer {
 	
 	/**serialVersionUID */
 	private static final long serialVersionUID = 1L;
+	
+
+	private JFrame chatGUI;
 	/**Eingabefeld des Chatfensters */
 	private JTextField userText; 
 	/**Chatfenster */
@@ -43,10 +46,19 @@ public class TalkServer {
 	/**Arrays der Sessions zwischen Server und Client*/
 	private Socket[] sessionArray = new Socket[10];
 	
+	//Entscheidung über Sender
+	volatile boolean sender = false;
+	//Entscheidung für crypted Send
+	volatile boolean xSender = false;
+	volatile String sendMessage = "";
+	
+	//Globaler SubKey
+	BigInteger globalKey;
+	
 	/** Array verfügbarer Ports */
 	boolean[] availablePorts = {true,true,true,true,true,true,true,true,true,true};
 	/**KryptoServer - Kryptomodul für Datenübertragung*/
-	KryptoServer cryptoModule;
+	RSAModule rsaModule;
 	
 	/** */
 	AskUserYesNo killHostPrompt;
@@ -59,11 +71,34 @@ public class TalkServer {
 	 */
 	public TalkServer() {
 		
-		cryptoModule= new KryptoServer(); //Kryptomodul erzeugen
-		
-		//cryptoModule.rounds = (int) (Math.random() * 4 + 1); Verzicht auf Server
-		System.out.println("Rounds: " + cryptoModule.rounds);
+		rsaModule= new RSAModule(); //Kryptomodul erzeugen
+		System.out.println("e: " + rsaModule.e);
+		System.out.println("d: " + rsaModule.d);
+		System.out.println("n: " + rsaModule.n);
 		drawServerGui();
+		drawAdminWindow();
+		startServer();
+	}
+	
+	JTextArea printAreaAdminBox;
+	JScrollPane textScroll;
+	
+
+	/**
+	 * Zeichne Adminbox
+	 */
+	private void drawAdminWindow() {
+		JFrame adminFrame = new JFrame("AdminBox");
+		adminFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+		printAreaAdminBox = new JTextArea();
+		printAreaAdminBox.setSize(300, 200);
+		printAreaAdminBox.setVisible(true);
+		textScroll = new JScrollPane(printAreaAdminBox);
+		textScroll.setVisible(true);
+		adminFrame.add(textScroll);
+		adminFrame.setSize(300, 200);
+		adminFrame.setLocation(725, 265);
+		adminFrame.setVisible(true);
 	}
 	
 	/**
@@ -71,7 +106,7 @@ public class TalkServer {
 	 */
 	private void drawServerGui() {
 		
-		JFrame chatGUI = new JFrame("ChatServer");
+		chatGUI = new JFrame("ChatServer");
 		chatGUI.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		userText = new JTextField();
 		userText.setEditable(false);
@@ -79,7 +114,7 @@ public class TalkServer {
 		userText.addActionListener(
 				new ActionListener() {
 					public void actionPerformed(ActionEvent event){
-						sendMessage(event.getActionCommand());
+						//sendMessage(event.getActionCommand());
 						userText.setText("");
 					}
 				}
@@ -92,7 +127,10 @@ public class TalkServer {
 		buttonSend = new JButton( "Send" );
 		buttonSend.addActionListener( new ActionListener() {
 			public void actionPerformed( ActionEvent event ) {
-				sendMessage(userText.getText()); // Eingabe holen
+				sendMessage = userText.getText(); // Eingabe holen
+				sender = true;
+				System.out.println("sendMessage: " + sendMessage);
+				//showMessage("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + userText.getText());
 				userText.setText(""); //reset Textfeld
 				}
 			});
@@ -100,8 +138,11 @@ public class TalkServer {
 		//Encrypted SendButton
         buttonEncryptedSend = new JButton("crypt Send");
         buttonEncryptedSend.addActionListener( new ActionListener() {
-        	public void actionPerformed( ActionEvent event ) {		  			 
-		  			sendMessageEncrypted(userText.getText()); // Eingabe holen
+        	public void actionPerformed( ActionEvent event ) {		 
+        			sendMessage = userText.getText();
+		  			xSender = true;
+        			//sendMessage = "";
+		  			//sendMessageEncrypted(userText.getText()); // Eingabe holen
 		  			userText.setText(""); //reset Texteingabefeld
 		  		  }
 		  	} );
@@ -110,7 +151,7 @@ public class TalkServer {
 		buttonFire = new JButton("Fire");
 		buttonFire.addActionListener( new ActionListener() {
 			public void actionPerformed( ActionEvent event ) {
-		    	sendMessage(userText.getText() ); // Eingabe holen
+		    	//sendMessage(userText.getText() ); // Eingabe holen
 		    	userText.setText(""); //reset Texteingabefeld
 		    	}
 		    });
@@ -139,19 +180,16 @@ public class TalkServer {
 	 */
 	public void startServer() {
 		boolean alive = true;
-		
-							try {
-								aufVerbindungWarten();
-							} catch (IOException e) {
-								// TODO Auto-generated catch block
-								e.printStackTrace();
-							}
-							/*startIOStreams();*/
-							//whileSharingData();
-							while(true) { }
-							
+		try {
+			aufVerbindungWarten();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		/*startIOStreams();*/
+		//whileSharingData();
+		while(true) { }							
 	//showMessage("Server Shutdown... bye");
-	
 	}
 	
 	/**aufVerbindungenWarten() lauscht auf dem Serversocket bis eine Verbindung vom 
@@ -165,14 +203,15 @@ public class TalkServer {
 		Runnable serverListener = new Runnable() {
 			public void run() {
 				try {
-				serverConnectionListener = new ServerSocket(3333,10);
+				serverConnectionListener = new ServerSocket(3336,10);
 				
 					while(true) {
-						showMessage("\nauf verbindung warten..."); 
+						showMessageAdmin("\nauf verbindung warten..."); 
 						Socket clientSocket = serverConnectionListener.accept();
 						clientProcessingPool.submit(new ClientTask(clientSocket));
 						/**@Override*/	//Später Ausgaben von ShowMessage in VerbinundungsdatensAnzeigefeld ausgeben lassen
-						showMessage("\nverbunden zu " + clientSocket.getInetAddress().getHostAddress());	
+						showMessageAdmin("\nverbunden zu " + clientSocket.getInetAddress().getHostAddress());	
+						System.out.println("verbunden");
 						writeLogFile("\nverbunden zu " + clientSocket.getInetAddress().getHostAddress(), new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
 					}
 				} catch (IOException e1) {
@@ -182,46 +221,165 @@ public class TalkServer {
 			}	
 		};
 		Thread ListenerThread = new Thread(serverListener);
-		ListenerThread.start();
-		
+		ListenerThread.start();	
 	}
+
 	
-	
-	
+	/**
+	 *Die Klasse ClientTask ist parallel ausführbar und stellt die gesamte
+	 *Server-Client[Thread] Funktionalität zur Verfügung. Die Klasse leitet 
+	 *Ein- und Ausgaben an die GUI weiter. 
+	 * @author mrt & sticklobot
+	 *
+	 */
 	private class ClientTask implements Runnable {
-		
+		/** Port mit Clienverbindung */
 		private final Socket clientSocket;
+		/**InputStream für Clientverindung */
+		ObjectInputStream sessionInputStream;
+		/**Outputstream für Clientverbindung */
+		ObjectOutputStream sessionOutputStream;
+		/**KryptoServer clientKrypto*/
+		KryptoServer clientKrypto;
+		String inputMessage;
+		String outputMessage;
+		
+		/** Konstruktor */
 		private ClientTask(Socket clientSocket) {
 			this.clientSocket = clientSocket;
 		}
-		public void run() {
-			/**@Override Clientfunktionalität zu Server */
-			try {
-				ObjectInputStream sessionInputStream = new ObjectInputStream(this.clientSocket.getInputStream());
-				ObjectOutputStream sessionOutputStream = new ObjectOutputStream(this.clientSocket.getOutputStream());
-				sessionOutputStream.writeObject("Test");
-				sessionOutputStream.flush();
-			} catch (IOException e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
-			}
-			
-			try {
-				whileSharingData();
-			} catch (IOException e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
-			}
-			
-			
-			
+		
+		public void run() throws RuntimeException {
+			boolean schalter = true;
+			//STREAMS ERSTELLEN UND RSA-KRYPTO TAUSCHT SUBKEY AUS
+				setupStreamsAndKrypto();
+				Thread outputThread = new Thread(new OutputStreamTask());
+				outputThread.start();
+			//WHILE CHATTING
+				while(schalter) {
+					try {
+						schalter = whileSharingData();
+						System.out.println("Schalter:" + schalter);
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+					
+					
+				}
+			//VERBINDUNG ZUM CLIENT BEENDEN
 			try {
 				clientSocket.close();
+				sessionInputStream.close();
+				sessionOutputStream.close();
+				showMessageAdmin("Verbindung beendet");
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
+			System.out.println("run() beendet");
 		}
+		
+		private void setupStreamsAndKrypto() {
+			try {
+				sessionInputStream = new ObjectInputStream(this.clientSocket.getInputStream());
+				sessionOutputStream = new ObjectOutputStream(this.clientSocket.getOutputStream());
+				sessionOutputStream.writeObject(rsaModule.e + "+" + rsaModule.n + rsaModule.rounds);
+				sessionOutputStream.flush();
+				String name = (String) sessionInputStream.readObject();
+				BigInteger subKey = rsaModule.privateKeyDecrypt(new BigInteger(name.substring(0, name.indexOf('|'))), rsaModule.d, rsaModule.n);
+				name = name.substring(name.indexOf('|')+1); 
+				System.out.println("name: "+ name);
+				System.out.println("SubKey: " + subKey);
+				clientKrypto = new KryptoServer(subKey) ;
+				sessionOutputStream.writeObject("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + "Sie sind jetzt verbunden.");
+				sessionOutputStream.flush();
+				showMessageAdmin("Sie sind verbunden...");
+				ableToType(true);
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			} catch (ClassNotFoundException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		//Nachricht senden
+		public void sendMessage(String message) {
+			try{
+				sessionOutputStream.writeObject("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + message);
+				sessionOutputStream.flush();
+				//writeLogFile("server[" + new java.util.Date().toString().substring(4,16) + "]:\n"+ message + "\n", new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
+				showMessage("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + message);
+			}catch(IOException ioException){
+				ioException.printStackTrace();
+			}
+		}
+		
+		/**
+		 * @return boolean - true or false entscheidet über Verbleib des Servers(true = an, false = aus)
+		 * @throws IOException
+		 */
+		private boolean whileSharingData() throws IOException {	
+			ableToType(true);
+			do{
+				try {
+					inputMessage = (String) sessionInputStream.readObject();
+				}catch(ClassNotFoundException classNotFoundException) {
+					
+				}catch(EOFException eofException) {
+					showMessageAdmin("\nVerbindungsfehler zu " + clientSocket.getLocalAddress().getHostAddress());
+					return false;
+				}
+				if(inputMessage.startsWith("cr1")) {
+					inputMessage = clientKrypto.decryptMessage(inputMessage.substring(3), rsaModule.rounds);
+					showMessage(inputMessage);
+				}else{
+					showMessage(inputMessage);	
+				}  //abschalten des servers nach Kondition
+				writeLogFile(inputMessage + "\n",new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
+			System.out.println(inputMessage.substring(26));
+			}while(!inputMessage.substring(22).equals("killclient"));
+			sendMessage("killclient");
+			return true; //Server überlebt-> auf neue Verbindung warten
+		}
+		
+		//Nachricht senden
+		public void sendMessageEncrypted(String message) {
+				
+			try{
+				sessionOutputStream.writeObject("cr1" + clientKrypto.encryptMessage("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n" + message, rsaModule.rounds));
+				sessionOutputStream.flush();
+				writeLogFile("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n"+ message + "\n", new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
+				showMessage("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n"+ message);
+			}catch(IOException ioException){
+				ioException.printStackTrace();
+			}
+			
+		}
+		
+		private class OutputStreamTask implements Runnable {
+			public OutputStreamTask() {
+			}
+			
+			public void run() {
+				//System.out.println("TOT");
+				boolean schalter = true;
+				while(schalter) {
+					if(sender){
+						//System.out.println("inrun: " + sendMessage);
+						sendMessage(sendMessage);
+						sender = false;
+					}
+					if(xSender) {
+						sendMessageEncrypted(sendMessage);
+						xSender = false;
+					}
+				}
+				
+			}
+		}
+	
 	}
 	
 	
@@ -238,47 +396,10 @@ public class TalkServer {
 		showMessage("---------Konversation beginnt--------");
 	}
 	
-	/**
-	 * @return boolean - true or false entscheidet über Verbleib des Servers(true = an, false = aus)
-	 * @throws IOException
-	 */
-	private boolean whileSharingData() throws IOException {
-		String message = "Sie sind jetzt verbunden";
-		hiddenSend();
-		sendMessage(message);
-		try {
-			cryptoModule.setSubKey(Integer.parseInt(cryptoModule.privateKeyDecrypt(new BigInteger((String) input.readObject()), cryptoModule.d, cryptoModule.n).toString()));
-		} catch (ClassNotFoundException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		ableToType(true);
-		
-		do{
-			try {
-				message = (String) input.readObject();
-			}catch(ClassNotFoundException classNotFoundException) {
-				
-			}catch(EOFException eofException) {
-				showMessage("\n Verbindungsfehler.");
-				return true;
-			}
-			if(message.startsWith("cr1")) {
-				message = cryptoModule.decryptMessage(message.substring(3), cryptoModule.rounds);
-				showMessage(message);
-			}else{
-				showMessage(message);	
-			}  //abschalten des servers nach Kondition
-			writeLogFile(message+"\n",new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
-		System.out.println(message.substring(26));
-		}while(!message.substring(22).equals("killclient"));
-		sendMessage("killclient");
-		return true; //Server überlebt-> auf neue Verbindung warten
-	}
 	
 	//IOStreams und ClientConnection schließen
 	private void closeCrap() {
-		showMessage("\nshutting down connections...");
+		showMessageAdmin("\nshutting down connections...");
 		ableToType(false);
 		try{
 			transmitConnectionInfoToClient.close();
@@ -291,37 +412,21 @@ public class TalkServer {
 	
 	private void hiddenSend() {
 		try{
-			transmitConnectionInfoToClient.writeObject(cryptoModule.startRSA() + "+" + cryptoModule.n + cryptoModule.rounds);
+			transmitConnectionInfoToClient.writeObject(rsaModule.e + "+" + rsaModule.n + rsaModule.rounds);
 			transmitConnectionInfoToClient.flush();
 		}catch(IOException ioException){
 			ioException.printStackTrace();
 		}
 	}
 	
-	//Nachricht senden
-	public void sendMessage(String message) {
-		try{
-			transmitConnectionInfoToClient.writeObject("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + message);
-			transmitConnectionInfoToClient.flush();
-			writeLogFile("server[" + new java.util.Date().toString().substring(4,16) + "]:\n"+ message + "\n", new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
-			showMessage("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + message);
-		}catch(IOException ioException){
-			ioException.printStackTrace();
-		}
-	}
-	
-	//Nachricht senden
-	public void sendMessageEncrypted(String message) {
-			
-		try{
-			transmitConnectionInfoToClient.writeObject("cr1" + cryptoModule.encryptMessage("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n" + message, cryptoModule.rounds));
-			transmitConnectionInfoToClient.flush();
-			writeLogFile("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n"+ message + "\n", new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
-			showMessage("server[-c- " + new java.util.Date().toString().substring(4,16) + "]:\n"+ message);
-		}catch(IOException ioException){
-			ioException.printStackTrace();
-		}
-		
+	private void showMessageAdmin(final String text) {
+		SwingUtilities.invokeLater(
+				new Runnable() {
+					public void run() {
+						printAreaAdminBox.append("\n" + text);
+					}
+				}
+			);
 	}
 	
 	private void showMessage(final String text) {
