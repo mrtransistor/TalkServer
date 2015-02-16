@@ -1,5 +1,7 @@
 import java.math.BigInteger;
 import java.awt.*;
+
+import javax.management.MXBean;
 import javax.swing.*;
 import java.io.*;
 import java.net.*;
@@ -18,11 +20,10 @@ public class TalkServer {
 	ServerGui chatGui;
 	//Object zur AdminWindow Generierung
 	AdminWindow adminWindow;
+	//Server Kryptomodul
+	KryptoServer serverKrypto;
 	//Globaler SubKey
 	BigInteger globalKey;
-	
-	/**KryptoServer - Kryptomodul für Datenübertragung*/
-	RSAModule rsaModule;
 	
 	/** */
 	AskUserYesNo killHostPrompt;
@@ -40,18 +41,12 @@ public class TalkServer {
 	 */
 	public TalkServer(int serverListenPort) throws IOException {
 		
-		//Kryptomodul erzeugen
-		rsaModule= new RSAModule(); 
-		
-		//RSA Ergebnisse serverseitig
-		System.out.println("e: " + rsaModule.e);
-		System.out.println("d: " + rsaModule.d);
-		System.out.println("n: " + rsaModule.n);
+		serverKrypto = new KryptoServer();
 		
 		//ServerGui zeichnen
 		chatGui = new ServerGui(); 
 		//AdminWindow zeichnen
-		adminWindow = new AdminWindow(); 		
+		adminWindow = new AdminWindow();
 		//ListenThread für Verbindungen zu Server
 		aufVerbindungWarten(serverListenPort);
 		
@@ -80,7 +75,7 @@ public class TalkServer {
 					//adminWindow.showMessageAdmin("\nWarten auf Username...");
 					//writeLogFile("\nverbunden zu " + clientSocket.getInetAddress().getHostAddress(), new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
 					adminWindow.showMessageAdmin("auf weitere Verindungen warten...");
-					new ClientTask(this, clientSocket);
+					new ClientTask(this, clientSocket, outputStreamToClient);
 				}
 			}	
 	//Auflistung aller Outputstreams, eine für jeden client
@@ -114,6 +109,7 @@ public class TalkServer {
 		}
 	}
 	
+	
 	/**
 	 * void removeConnection(Socket connectionToKill) throws IOException konsumiert
 	 * Clientverbindung vom Typ Socket und löscht diese aus outputStreams und schließ die Verbindung
@@ -129,8 +125,7 @@ public class TalkServer {
 			connectionToKill.close();
 		}
 	}
-	
-	
+
 	/**
 	 * 
 	 * @param s
@@ -147,6 +142,11 @@ public class TalkServer {
 		}
 	}
 	
+	/**
+	 * 
+	 * @param args
+	 * @throws Exception
+	 */
 	public static void main(String[] args) throws Exception {
 		//Kann Argument aus Kommandozeile entgegennehmen -> Port auf dem gelauscht wird
 		int serverListenPort = 3336;

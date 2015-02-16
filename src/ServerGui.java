@@ -16,7 +16,7 @@ import javax.swing.SwingUtilities;
 
 public class ServerGui {
 	
-	private JFrame chatGUI;
+	public JFrame chatGUI;
 	/**Eingabefeld des Chatfensters */
 	private JTextField userText; 
 	/**Chatfenster */

@@ -10,6 +10,8 @@ public class AdminWindow {
 	JTextArea printAreaAdminBox;
 	/** Scrollpane für Textfeld */
 	JScrollPane textScroll;
+	//AdminWindowFrame
+	public JFrame adminWINDOW;
 	
 	/**
 	 * Konstruktor von AdminWindow.
@@ -22,17 +24,19 @@ public class AdminWindow {
 	 * Zeichne Adminbox
 	 */
 	private void drawAdminWindow() {
-		JFrame adminFrame = new JFrame("AdminBox");
-		adminFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+		adminWINDOW = new JFrame("AdminBox");
+		adminWINDOW.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 		printAreaAdminBox = new JTextArea();
 		printAreaAdminBox.setSize(300, 200);
 		printAreaAdminBox.setVisible(true);
+		printAreaAdminBox.setEditable(false);
 		textScroll = new JScrollPane(printAreaAdminBox);
 		textScroll.setVisible(true);
-		adminFrame.add(textScroll);
-		adminFrame.setSize(300, 200);
-		adminFrame.setLocation(725, 265);
-		adminFrame.setVisible(true);
+		adminWINDOW.add(textScroll);
+		adminWINDOW.setSize(300, 200);
+		adminWINDOW.setLocation(725, 265);
+		adminWINDOW.setResizable(false);
+		adminWINDOW.setVisible(true);
 	}
 	
 	/**

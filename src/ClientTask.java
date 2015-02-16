@@ -20,18 +20,20 @@ import java.net.SocketException;
 		private final Socket client;
 		/**Talk Server Object */
 		private final TalkServer server;
+		/**ObjectOutputStream für RSA Uebermittelung */
+		ObjectOutputStream exclusiveOutputStreamToClient;
 		/**InputStream für Clientverindung */
 		ObjectInputStream sessionInputStream;
-		/**Outputstream für Clientverbindung */
-		ObjectOutputStream sessionOutputStream;
 		/**KryptoServer clientKrypto*/
 		KryptoServer clientKrypto;
 		String inputMessage;
+		String userName = "default";
 		
 		/** Konstruktor */
-		public ClientTask(TalkServer serverObject, Socket clientSocket) {
+		public ClientTask(TalkServer serverObject, Socket clientSocket, ObjectOutputStream exclusiveOutputStream) {
 			this.client = clientSocket;
 			this.server = serverObject;
+			this.exclusiveOutputStreamToClient = exclusiveOutputStream;
 			System.out.println("Paralleles Objekt des Clienten: " + this.toString());
 			start();
 		}
@@ -40,7 +42,26 @@ import java.net.SocketException;
 				
 				try {
 					//neuen Inputstream erzeugen
-					sessionInputStream = new ObjectInputStream(client.getInputStream());					
+					sessionInputStream = new ObjectInputStream(client.getInputStream());
+					String input = "";
+					String name = "";
+					String publicKey = "";
+					try {
+						input = (String) sessionInputStream.readObject();
+						System.out.println("input" + input);
+						publicKey = input.substring(0, input.indexOf(':'));
+						name = input.substring(publicKey.length()+1);
+					} catch (ClassNotFoundException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+					//SubKey Verschuesseln und uebertragen
+					server.adminWindow.showMessageAdmin("PublicKey von " + name + " : " + publicKey);
+					exclusiveOutputStreamToClient.writeObject((publicKeyEncrypt(new BigInteger(String.valueOf(server.serverKrypto.getSubKey())), new BigInteger(publicKey.substring(0, publicKey.indexOf('&'))), new BigInteger(publicKey.substring(publicKey.indexOf('&')+1)))).toString());
+					exclusiveOutputStreamToClient.flush();
+					//exclusiveOutputStreamToClient.close();	
+					server.adminWindow.showMessageAdmin("Subkey: " + server.serverKrypto.getSubKey() + " an " + name + ":" + client.getInetAddress().getHostAddress());
+
 					//Chatten mit Client
 					try{
 					whileSharingData();
@@ -63,49 +84,46 @@ import java.net.SocketException;
 		 * @throws IOException
 		 */
 		private synchronized void whileSharingData() throws IOException  {	
+			boolean alive = true;
 			//ableToType(true);
 			do{
-				//server.sendToAll(server.chatGui.serverMessage);
 				try {
-					// speichert eingelesen Nachricht 
+					// Nachricht einlesen und Zwischenspeichern
 					inputMessage = (String) sessionInputStream.readObject();
-					System.out.println("IM: " + inputMessage);
-					//TODO AN SERVER SCHICKEN
 				}catch(ClassNotFoundException classNotFoundException) {
-					
+					System.out.println(classNotFoundException);
 				}catch(SocketException socketException){
-					//showMessageAdmin("\n"+clientSocket.getLocalAddress().getCanonicalHostName() + " hat Connection gekillt\nAbbruchkriterium: SocketException\n" );
+					server.adminWindow.showMessageAdmin("\n"+client.getLocalAddress().getCanonicalHostName() + " hat Connection gekillt\nAbbruchkriterium: SocketException\n" );
 				}catch(EOFException eofException) {
-					//showMessageAdmin("\nVerbindungsfehler zu " + clientSocket.getLocalAddress().getHostAddress());
+					server.adminWindow.showMessageAdmin("\nVerbindungsfehler zu " + client.getLocalAddress().getHostAddress());
 				}
-				server.sendToAll(inputMessage);
-				//writeLogFile(inputMessage + "\n",new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
-			//System.out.println(inputMessage.substring(26));
-				try {
-					inputMessage.substring(22).equals("killclient"); 
-					}catch (NullPointerException np){
-					System.out.println("leere Nachricht oder Verbindung tot - client:" + client.toString());
-					break;
-					}
-			}while(!inputMessage.substring(22).equals("killclient"));	
+				
+				//TODO LOG DATEI SCHREIBEN writeLogFile(inputMessage + "\n",new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
+				//Nachricht verschlüsselt ? 
+				if(inputMessage.startsWith("cr1")) {
+					//Entschluesseln der Nachricht
+					inputMessage = server.serverKrypto.decryptMessage(inputMessage.substring(3),1);
+				}
+				//Nachricht nur an Clients weiterreichen, wenn keine Kill Aufforderung gesendet wurde
+				if(inputMessage.substring(16 + userName.length()).equals("killclient")) {
+					alive = false;
+				}else{
+					//Nachricht an alle Clients weiterreichen und anzeigen
+					server.sendToAll(inputMessage);
+				}
+				
+			}while(alive);	
 		}
 		
 		/**
-		 * public void sendMessage(String message) throws IOException.
-		 * Sie konsumiert einen String (Nachricht die versendet werden soll)
-		 * Der übergebende String wird über den aktuellen (Server:Client(n)] OutputStream
-		 * verschickt. 
+		 * 
 		 * @param message
+		 * @param e
+		 * @param n
+		 * @return
 		 */
-		public void sendMessage(String message) {
-			try{
-				sessionOutputStream.writeObject("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + message);
-				sessionOutputStream.flush();
-				//writeLogFile("server[" + new java.util.Date().toString().substring(4,16) + "]:\n"+ message + "\n", new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
-				//showMessage("server[" + new java.util.Date().toString().substring(4,16) + "]:\n" + message);
-			}catch(IOException ioException){
-				ioException.printStackTrace();
-			}
+		public BigInteger publicKeyEncrypt(BigInteger message, BigInteger e, BigInteger n) {
+			return message.modPow(e, n); 
 		}
 		
 		/**

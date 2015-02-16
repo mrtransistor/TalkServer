@@ -5,15 +5,20 @@ public class KryptoServer {
 	
 	private int subKey;
 	
-	public KryptoServer(BigInteger subKey) {
-		this.subKey = Integer.parseInt(subKey.toString());
+	public KryptoServer() {
+		setSubKey();
 	}
 	/**
 	 * setSubKey(int value) setzt den Wert der privaten subKey Variable
 	 * @param value
 	 */
-	public void setSubKey(int value) {
-		subKey = value;
+	private void setSubKey() {
+		this.subKey = (int) (Math.random() * 9) + 1; 
+		System.out.println("generierter subkey: " + this.subKey);
+	}
+	
+	public int getSubKey() {
+		return this.subKey;
 	}
 	
 	/**

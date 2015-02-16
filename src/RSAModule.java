@@ -34,8 +34,8 @@ public class RSAModule {
 	 * private void calcN(BigInteger p, BigInteger q) konsumiert zwei Primzahlen vom Typ
 	 * BigInteger und berechnet deren Produkt (n) und gibt diesen Wert an this.n
 	 */
-	private void calcN(BigInteger p, BigInteger q){
-		n =  p.multiply(q);
+	private void calcN(){
+		n =  choose1.multiply(choose2);
 		}
 	/**
 	 * public void calcE(BigInteger phi_N) konsumiert phi(n) und errechnet 
@@ -75,7 +75,7 @@ public class RSAModule {
 	 */
 	public void startRSA(){		 
 		getTwoRandomPrimes();
-	    calcN(choose1, choose2);
+	    calcN();
         BigInteger phi_N = (choose1.subtract(BigInteger.ONE)).multiply( choose2.subtract( BigInteger.ONE) );
         calcE(phi_N);
         calcD(phi_N, e);
@@ -93,6 +93,17 @@ public class RSAModule {
 	public BigInteger privateKeyDecrypt(BigInteger message, BigInteger e, BigInteger n) {
 		return message.modPow(e, n); 
 		}
+	
+	/**
+	 * 
+	 * @param message
+	 * @param e
+	 * @param n
+	 * @return
+	 */
+	public BigInteger publicKeyEncrypt(BigInteger message, BigInteger e, BigInteger n) {
+		return message.modPow(e, n); 
+	}
 		
 	/**
 	 * public String intToString(int integer) wandelt einen Integerwert in entsprechende
