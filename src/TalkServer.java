@@ -24,9 +24,12 @@ public class TalkServer {
 	KryptoServer serverKrypto;
 	//Globaler SubKey
 	BigInteger globalKey;
-	
+	//set PasswordGUI 
+	AskGui passwordGUI;
 	/** */
 	AskUserYesNo killHostPrompt;
+	//session Pw
+	String sessionPW;
 	
 	/**ExecutorService für ClientThreads*/
 	//final ExecutorService clientProcessingPool = Executors.newFixedThreadPool(10);
@@ -40,16 +43,18 @@ public class TalkServer {
 	 * @param void - keine
 	 */
 	public TalkServer(int serverListenPort) throws IOException {
-		
+		//Modul fuer Verschluesselun der Nachrichtenübertragungen
 		serverKrypto = new KryptoServer();
-		
+		//Password setzen
+		passwordGUI = new AskGui("Passwort setzen", "Session Passwort(leer = kein PW):");
+		//session Passwort holen
+		sessionPW = passwordGUI.answerOfUser;
 		//ServerGui zeichnen
 		chatGui = new ServerGui(); 
 		//AdminWindow zeichnen
 		adminWindow = new AdminWindow();
 		//ListenThread für Verbindungen zu Server
 		aufVerbindungWarten(serverListenPort);
-		
 	}
 
 	/**aufVerbindungenWarten() lauscht auf dem Serversocket bis eine Verbindung vom 
@@ -58,7 +63,6 @@ public class TalkServer {
 	 * @return void - keine
 	*/ 
 	private void aufVerbindungWarten(final int serverListenPort)  throws IOException {
-		
 			//ServerSocket erstellen -> Server bereit für Verbindungen auf Port	
 			serverConnectionListener = new ServerSocket(serverListenPort,10);
 			adminWindow.showMessageAdmin("Server lauscht für immer ;) auf\nneue Connections? ok."); 
@@ -78,7 +82,11 @@ public class TalkServer {
 					new ClientTask(this, clientSocket, outputStreamToClient);
 				}
 			}	
-	//Auflistung aller Outputstreams, eine für jeden client
+	
+	/**
+	 * Gibt Auflistung verfügbarer Elemente in outputStreams zurueck 
+	 * @return Aufzaehlung der Elemente in outputStreams
+	 */
 	Enumeration getOutputStreams() {
 	return outputStreams.elements();
 	}
@@ -126,7 +134,7 @@ public class TalkServer {
 		}
 	}
 
-	/**
+	/**Schreibt Logfile mit übergebenen Daten
 	 * 
 	 * @param s
 	 * @param file
@@ -142,7 +150,7 @@ public class TalkServer {
 		}
 	}
 	
-	/**
+	/**Startet des gesamte Programm (optional)
 	 * 
 	 * @param args
 	 * @throws Exception

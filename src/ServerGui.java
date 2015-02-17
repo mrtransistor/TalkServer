@@ -62,7 +62,7 @@ public class ServerGui {
 		);
 		//Chatwindow erzeugen
 		chatWindow = new JTextArea();
-		//chatWindow.setSize(550, 200);
+		chatWindow.setLineWrap(true);
 				
 		//Send Button
 		buttonSend = new JButton( "Send" );
@@ -108,6 +108,7 @@ public class ServerGui {
 		chatGUI.add(splitPane, BorderLayout.CENTER);  //ChatWindow hinzufügen
 		chatGUI.setLocation(175, 175);
 		chatGUI.setSize(550, 280);
+		chatGUI.setResizable(false);
 		chatGUI.setVisible(true);
 	}
 

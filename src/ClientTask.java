@@ -44,34 +44,59 @@ import java.net.SocketException;
 					//neuen Inputstream erzeugen
 					sessionInputStream = new ObjectInputStream(client.getInputStream());
 					String input = "";
-					String name = "";
 					String publicKey = "";
 					try {
 						input = (String) sessionInputStream.readObject();
 						System.out.println("input" + input);
 						publicKey = input.substring(0, input.indexOf(':'));
-						name = input.substring(publicKey.length()+1);
+						userName = input.substring(publicKey.length()+1);
 					} catch (ClassNotFoundException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
-					//SubKey Verschuesseln und uebertragen
-					server.adminWindow.showMessageAdmin("PublicKey von " + name + " : " + publicKey);
-					exclusiveOutputStreamToClient.writeObject((publicKeyEncrypt(new BigInteger(String.valueOf(server.serverKrypto.getSubKey())), new BigInteger(publicKey.substring(0, publicKey.indexOf('&'))), new BigInteger(publicKey.substring(publicKey.indexOf('&')+1)))).toString());
-					exclusiveOutputStreamToClient.flush();
-					//exclusiveOutputStreamToClient.close();	
-					server.adminWindow.showMessageAdmin("Subkey: " + server.serverKrypto.getSubKey() + " an " + name + ":" + client.getInetAddress().getHostAddress());
+					//PublicKey anzeigen lassen
+					server.adminWindow.showMessageAdmin("PublicKey von " + userName + " : " + publicKey);
+					
+					//Passwortabfrage
+					if(!server.sessionPW.equals("")) {
+						System.out.println("sessionPw: " + server.sessionPW);
+						//Client auffordern ein PW zu schicken
+						exclusiveOutputStreamToClient.writeObject("::pw::");
+						exclusiveOutputStreamToClient.flush();
+						System.out.println("aufforderung geschickt");
+						try {
+							//Passwort von Client entgegennehmen
+							input = (String) sessionInputStream.readObject();
+							System.out.println("Antwort: " + input);
+						}catch(ClassNotFoundException classNotFoundException) {
+						System.out.println("Fehler bei Passwort einlesen");
+						}
+						//Passwort korrekt ?
+						if(input.equals(server.sessionPW)) {
+							
+							//Subkey verschlüsseln und an Client übermitteln
+							exclusiveOutputStreamToClient.writeObject((publicKeyEncrypt(new BigInteger(String.valueOf(server.serverKrypto.getSubKey())), new BigInteger(publicKey.substring(0, publicKey.indexOf('&'))), new BigInteger(publicKey.substring(publicKey.indexOf('&')+1)))).toString());
+							exclusiveOutputStreamToClient.flush();
+							server.adminWindow.showMessageAdmin("Subkey: " + server.serverKrypto.getSubKey() + " an " + userName + ":" + client.getInetAddress().getHostAddress());
 
-					//Chatten mit Client
-					try{
-					whileSharingData();
-					}catch(SocketException socketException) {
-						System.out.println("Verbindung tot - client: " + client.toString());
+							//Chatten mit Client
+							try{
+							whileSharingData();
+							}catch(SocketException socketException) {
+								System.out.println("Verbindung tot - client: " + client.toString());
+							}
+							//VERBINDUNG ZUM CLIENT BEENDEN
+							sessionInputStream.close();
+							server.removeConnection(client);
+							//showMessageAdmin("Verbindung beendet");
+						}else {
+							server.adminWindow.showMessageAdmin("Falsche Passworteingabe des Users: " + userName + ":" + client.getInetAddress().getCanonicalHostName());
+							//VERBINDUNG ZUM CLIENT BEENDEN
+							sessionInputStream.close();
+							server.removeConnection(client);
+							//showMessageAdmin("Verbindung beendet");
+						}
 					}
-					//VERBINDUNG ZUM CLIENT BEENDEN
-					sessionInputStream.close();
-					server.removeConnection(client);
-					//showMessageAdmin("Verbindung beendet");
 				} catch (IOException e) {
 					System.out.println("Fehler bei Aufbau von Inputstream");
 					e.printStackTrace();

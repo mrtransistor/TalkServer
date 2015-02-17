@@ -30,6 +30,7 @@ public class AdminWindow {
 		printAreaAdminBox.setSize(300, 200);
 		printAreaAdminBox.setVisible(true);
 		printAreaAdminBox.setEditable(false);
+		printAreaAdminBox.setLineWrap(true);
 		textScroll = new JScrollPane(printAreaAdminBox);
 		textScroll.setVisible(true);
 		adminWINDOW.add(textScroll);
