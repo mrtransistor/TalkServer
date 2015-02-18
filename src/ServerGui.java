@@ -1,16 +1,25 @@
 import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.IOException;
 
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JEditorPane;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.JTextPane;
 import javax.swing.SwingUtilities;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultCaret;
+import javax.swing.text.Document;
+import javax.swing.text.StyledDocument;
+import javax.swing.text.html.HTMLDocument;
+import javax.swing.text.html.HTMLEditorKit;
 
 
 
@@ -20,7 +29,7 @@ public class ServerGui {
 	/**Eingabefeld des Chatfensters */
 	private JTextField userText; 
 	/**Chatfenster */
-	private JTextArea chatWindow;
+	private JTextPane chatWindow;
 	/**Send Button */
 	private JButton buttonSend;
 	/**Verschüsseltes Senden Button */
@@ -61,9 +70,12 @@ public class ServerGui {
 				}
 		);
 		//Chatwindow erzeugen
-		chatWindow = new JTextArea();
-		chatWindow.setLineWrap(true);
-				
+		chatWindow = new JTextPane();
+		chatWindow.setContentType("text/html");
+		chatWindow.setEditorKit(new HTMLEditorKit());
+		chatWindow.setEditable(false);
+		DefaultCaret caret = (DefaultCaret)chatWindow.getCaret();
+		caret.setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE);
 		//Send Button
 		buttonSend = new JButton( "Send" );
 		buttonSend.addActionListener( new ActionListener() {
@@ -132,8 +144,19 @@ public class ServerGui {
 	public void showMessage(final String text) {
 		SwingUtilities.invokeLater(
 				new Runnable() {
-					public void run() {
-						chatWindow.append("\n" + text);
+					public void run()  {
+						//Dokument aus chatwindow holen und ablegen
+						Document doc  = chatWindow.getDocument();
+						try {
+							//Mittels HTMLEditorkit doc (Dokument) als HTMLDocument am Ende (doc.getLength()) des Dokmuentes anhängen.
+							new HTMLEditorKit().insertHTML((HTMLDocument) doc, doc.getLength(), text, 0,0, null);
+						} catch (BadLocationException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						} catch (IOException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}			
 					}
 				}
 			);
