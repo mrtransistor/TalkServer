@@ -4,8 +4,9 @@ import java.security.CryptoPrimitive;
 public class KryptoServer {
 	
 	private int subKey;
-	
-	public KryptoServer() {
+	AdminWindow adminWindow;
+	public KryptoServer(AdminWindow adminWindowObject) {
+		adminWindow = adminWindowObject;
 		setSubKey();
 	}
 	/**
@@ -14,7 +15,7 @@ public class KryptoServer {
 	 */
 	private void setSubKey() {
 		this.subKey = (int) (Math.random() * 9) + 1; 
-		System.out.println("generierter subkey: " + this.subKey);
+		adminWindow.showMessageAdmin("<html>verwendeter SubKey:  <b>" +  String.valueOf(this.subKey) + "</b></html>");
 	}
 	
 	public int getSubKey() {

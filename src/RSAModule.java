@@ -3,8 +3,8 @@ import java.math.BigInteger;
 
 public class RSAModule {
 	
-	private  BigInteger  choose1;
-	private  BigInteger choose2;
+	private BigInteger  choose1;
+	private BigInteger choose2;
 	public int rounds = 0;
 	public BigInteger n = new BigInteger("0"); //Öffentlicher Schlüssel n
 	public BigInteger e;  
@@ -57,7 +57,7 @@ public class RSAModule {
 	 * @param phi_N
 	 * @param e
 	 */
-	public void calcD(BigInteger phi_N, BigInteger e) {
+	public void calcD(BigInteger phi_N) {
 			
 			BigInteger result =  null;
 			BigInteger i = new BigInteger("2");
@@ -78,7 +78,7 @@ public class RSAModule {
 	    calcN();
         BigInteger phi_N = (choose1.subtract(BigInteger.ONE)).multiply( choose2.subtract( BigInteger.ONE) );
         calcE(phi_N);
-        calcD(phi_N, e);
+        calcD(phi_N);
         //System.out.println("n: " + n + " e: " + e + " d: " + d);
 	    //System.out.println("e: " + e + " n: " + n);
 		}
@@ -90,7 +90,7 @@ public class RSAModule {
 	 * @param n
 	 * @return
 	 */
-	public BigInteger privateKeyDecrypt(BigInteger message, BigInteger e, BigInteger n) {
+	public BigInteger privateKeyDecrypt(BigInteger message) {
 		return message.modPow(e, n); 
 		}
 	
@@ -101,7 +101,7 @@ public class RSAModule {
 	 * @param n
 	 * @return
 	 */
-	public BigInteger publicKeyEncrypt(BigInteger message, BigInteger e, BigInteger n) {
+	public BigInteger publicKeyEncrypt(BigInteger message) {
 		return message.modPow(e, n); 
 	}
 		

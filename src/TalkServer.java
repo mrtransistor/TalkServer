@@ -30,6 +30,8 @@ public class TalkServer {
 	AskUserYesNo killHostPrompt;
 	//session Pw
 	String sessionPW;
+	//RSA-Modul zur verschuesselten PW-Uebermittelung
+	RSAModule pwRSA ;
 	
 	/**ExecutorService für ClientThreads*/
 	//final ExecutorService clientProcessingPool = Executors.newFixedThreadPool(10);
@@ -43,8 +45,6 @@ public class TalkServer {
 	 * @param void - keine
 	 */
 	public TalkServer(int serverListenPort) throws IOException {
-		//Modul fuer Verschluesselun der Nachrichtenübertragungen
-		serverKrypto = new KryptoServer();
 		//Password setzen
 		passwordGUI = new AskGui("Passwort setzen", "Session Passwort(leer = kein PW):");
 		//session Passwort holen
@@ -53,6 +53,10 @@ public class TalkServer {
 		chatGui = new ServerGui(); 
 		//AdminWindow zeichnen
 		adminWindow = new AdminWindow();
+		//RSA Modul fuer verschuesselte PW-Uebermittelung initialisieren
+		pwRSA = new RSAModule();
+		//Modul fuer Verschluesselun der Nachrichtenübertragungen
+		serverKrypto = new KryptoServer(adminWindow);
 		//ListenThread für Verbindungen zu Server
 		aufVerbindungWarten(serverListenPort);
 	}
@@ -76,9 +80,8 @@ public class TalkServer {
 					outputStreams.put(clientSocket, outputStreamToClient);
 					/**@Override*/	//Später Ausgaben von ShowMessage in VerbinundungsdatensAnzeigefeld ausgeben lassen
 					adminWindow.showMessageAdmin("\nverbunden zu " + clientSocket.getInetAddress().getHostAddress());	
-					//adminWindow.showMessageAdmin("\nWarten auf Username...");
 					//writeLogFile("\nverbunden zu " + clientSocket.getInetAddress().getHostAddress(), new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
-					adminWindow.showMessageAdmin("auf weitere Verindungen warten...");
+					adminWindow.showMessageAdmin("auf weitere Verbindungen warten...");
 					new ClientTask(this, clientSocket, outputStreamToClient);
 				}
 			}	
@@ -113,7 +116,7 @@ public class TalkServer {
 				os.flush();
 			}
 			//Nachricht anzeigen n Chatgui
-			chatGui.showMessage(message);
+			//chatGui.showMessage(message);
 		}
 	}
 	
