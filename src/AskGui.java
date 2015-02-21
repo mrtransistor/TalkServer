@@ -51,7 +51,12 @@ public class AskGui {
 			System.out.println(askFrame.isActive());
 			boolean isEmpty = true;
 			while(isEmpty = answerOfUser.isEmpty()) { //System.out.println("Leer: " + hostAddress.isEmpty());
-			System.out.println(isEmpty);
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 			}
 			return answerOfUser;
 	}

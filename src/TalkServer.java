@@ -53,6 +53,8 @@ public class TalkServer {
 		chatGui = new ServerGui(); 
 		//AdminWindow zeichnen
 		adminWindow = new AdminWindow();
+		//Passwort anzeigen
+		adminWindow.showMessageAdmin("Passwort für diese Session: " + sessionPW);
 		//RSA Modul fuer verschuesselte PW-Uebermittelung initialisieren
 		pwRSA = new RSAModule();
 		//Modul fuer Verschluesselun der Nachrichtenübertragungen

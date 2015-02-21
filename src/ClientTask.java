@@ -76,28 +76,31 @@ import java.net.SocketException;
 						exclusiveOutputStreamToClient.flush();
 						System.out.println("aufforderung geschickt");
 						try {
+							
 							//Passwort von Client entgegennehmen
 							input = (String) sessionInputStream.readObject();
-							System.out.println("Antwort: " + input);
+							//PW entschlüsseln
 							input = server.pwRSA.privateKeyDecrypt(new BigInteger(input)).toString();
-							input = input.substring(1);
-							input = dezimalAsciiStringToLetters(input);
+							//ASCII-Codes in Buchstbaen umwandeln - Vorangestellte 1 nicht mit übersetzen.
+							input = dezimalAsciiStringToLetters(input.substring(1));
 						}catch(ClassNotFoundException classNotFoundException) {
 						System.out.println("Fehler bei Passwort einlesen");
 						}
-						//Passwort korrekt ?
+						//Passwort korrekt ? true -> Verschlüsselung wird eingerichtet
 						if(input.equals(server.sessionPW)) {
-							
+							server.adminWindow.showMessageAdmin(userName + " - Passworteingabe korrekt" );
 							//Subkey verschlüsseln und an Client übermitteln
 							exclusiveOutputStreamToClient.writeObject((publicKeyEncrypt(new BigInteger(String.valueOf(server.serverKrypto.getSubKey())), new BigInteger(publicKey.substring(0, publicKey.indexOf('&'))), new BigInteger(publicKey.substring(publicKey.indexOf('&')+1)))).toString());
 							exclusiveOutputStreamToClient.flush();
 							server.adminWindow.showMessageAdmin("Subkey: " + server.serverKrypto.getSubKey() + " an " + userName + ":" + client.getInetAddress().getHostAddress());
 
-							//Chatten mit Client ab hier
+							//Chatten mit Client ab hier - Programm verharrt in whileChatting()
 							try{
-							whileSharingData();
+							whilechatting();
 							}catch(SocketException socketException) {
 								System.out.println("Verbindung tot - client: " + client.toString());
+								sessionInputStream.close();
+								server.removeConnection(client);
 							}
 							//VERBINDUNG ZUM CLIENT BEENDEN
 							sessionInputStream.close();
@@ -126,7 +129,7 @@ import java.net.SocketException;
 		 * @return boolean - true or false entscheidet über Verbleib des Servers(true = an, false = aus)
 		 * @throws IOException
 		 */
-		private synchronized void whileSharingData() throws IOException  {	
+		private synchronized void whilechatting() throws IOException  {	
 			boolean alive = true;
 			//ableToType(true);
 			do{
