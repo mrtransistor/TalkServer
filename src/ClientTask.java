@@ -22,6 +22,7 @@ import java.net.SocketException;
 		private final TalkServer server;
 		/**ObjectOutputStream für RSA Uebermittelung */
 		private ObjectOutputStream exclusiveOutputStreamToClient;
+		
 		/**InputStream für Clientverindung */
 		ObjectInputStream sessionInputStream;
 		/**KryptoServer clientKrypto*/
@@ -30,6 +31,8 @@ import java.net.SocketException;
 		String inputMessage;
 		//verwendeter Username wird auf default gesetzt falls keine erfolgreiche Eingabe des Users 
 		String userName = "default";
+		//Game
+		String opponentsName = "";
 		
 		/** Konstruktor */
 		public ClientTask(TalkServer serverObject, Socket clientSocket, ObjectOutputStream exclusiveOutputStream) {
@@ -61,6 +64,9 @@ import java.net.SocketException;
 						publicKey = input.substring(0, input.indexOf(':'));
 						//Benutzernamen extrahieren
 						userName = input.substring(publicKey.length()+1);
+						//Name mit OutputStream assoziiert in Hashtable ablegen
+						server.NameToClient.put(userName, client);
+						System.out.println("Keys: " + server.NameToClient.get(userName));
 					} catch (ClassNotFoundException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
@@ -105,12 +111,14 @@ import java.net.SocketException;
 							//VERBINDUNG ZUM CLIENT BEENDEN
 							sessionInputStream.close();
 							server.removeConnection(client);
+							server.NameToClient.remove(userName);
 							//showMessageAdmin("Verbindung beendet");
 						}else {
 							server.adminWindow.showMessageAdmin("Falsche Passworteingabe des Users: " + userName + ":" + client.getInetAddress().getCanonicalHostName());
 							//VERBINDUNG ZUM CLIENT BEENDEN
 							sessionInputStream.close();
 							server.removeConnection(client);
+							server.NameToClient.remove(userName);
 							//showMessageAdmin("Verbindung beendet");
 						}
 					}
@@ -131,6 +139,10 @@ import java.net.SocketException;
 		 */
 		private synchronized void whilechatting() throws IOException  {	
 			boolean alive = true;
+			String tempForeignClientName = "";
+			String tempResponse;
+			String tempGameName = "";
+			String decryptedInfo = "";
 			//ableToType(true);
 			do{
 				try {
@@ -145,17 +157,66 @@ import java.net.SocketException;
 				}
 				
 				//TODO LOG DATEI SCHREIBEN writeLogFile(inputMessage + "\n",new File("/home/mrtransistor/workspace/InputOutputInterface/src/logFile.log"));
-				//System.out.println("IM" + inputMessage);
+				
 				//Nachricht verschlüsselt ? 
 				if(inputMessage.startsWith("cr1")) {
+					//VERSCHLUESSELTE BEHANDLUNG
 					//Entschluesseln der Nachricht zum anzeigen
-					server.chatGui.showMessage(server.serverKrypto.decryptMessage(inputMessage.substring(3),1));
-				}else{
-					//Nachricht unerverschluesselt anzeigen
-					server.chatGui.showMessage(inputMessage);
+					decryptedInfo = server.serverKrypto.decryptMessage(inputMessage.substring(3),1);
+					tempForeignClientName = decryptedInfo.substring(16 + userName.length(), decryptedInfo.indexOf('$'));
+					if(server.NameToClient.containsKey(tempForeignClientName)) {
+						tempGameName = decryptedInfo.substring(16+userName.length() + tempForeignClientName.length() + 1);
+						switch(tempGameName) {
+							case "pong" : {
+								server.sendToExplicitClient((Socket) server.NameToClient.get(tempForeignClientName), userName+"$pong");
+								
+							}break;
+						}
+					}else {
+						//Nachricht unverschluesselt anzeigen
+						server.chatGui.showMessage(decryptedInfo);
+						//Nachricht an alle Clients weiterreichen und anzeigen
+						server.sendToAll(inputMessage);
+					}
+				}else{ //UNVERSCHLUESSELTE BEHANDLUNG
+					
+					if(inputMessage.length() > 5 && (inputMessage.startsWith("@play") || inputMessage.startsWith("@response")) ) {
+						if(inputMessage.startsWith("@play")) {
+							tempForeignClientName = inputMessage.substring(5, inputMessage.indexOf('$'));
+							System.out.println("foreigClientName: " + tempForeignClientName);
+							if(server.NameToClient.containsKey(tempForeignClientName)) {
+								tempGameName = inputMessage.substring(inputMessage.indexOf('$')+1);
+								System.out.println("GameName:" + tempGameName);
+								switch(tempGameName) {
+									case "pong" : {
+									server.sendToExplicitClient((Socket) server.NameToClient.get(tempForeignClientName), "@play" + userName+"$pong");
+									}break;
+								}
+							}
+						}
+						
+						if(inputMessage.startsWith("@response")) {
+							tempResponse = inputMessage.substring(9, inputMessage.indexOf('$'));
+							System.out.println("tempResponse: " + tempResponse);
+							if(tempResponse.equals("true")) {
+								opponentsName = inputMessage.substring(inputMessage.indexOf('&')+1);
+								System.out.println("opponentsName: " + opponentsName);
+								inputMessage = inputMessage.substring(0, inputMessage.indexOf('&')) + userName;
+								server.sendToExplicitClient((Socket) server.NameToClient.get(opponentsName), inputMessage);
+								//SPIELSTARTEN "PONG"
+							}else {
+								opponentsName = inputMessage.substring(inputMessage.indexOf('&')+1);
+								server.sendToExplicitClient((Socket) server.NameToClient.get(opponentsName), inputMessage);
+							}
+						}
+					}else {	
+						//Nachricht unerverschluesselt anzeigen
+						server.chatGui.showMessage(inputMessage);
+						//Nachricht an alle Clients weiterreichen und anzeigen
+						server.sendToAll(inputMessage);
+						}
 				}
-					//Nachricht an alle Clients weiterreichen und anzeigen
-					server.sendToAll(inputMessage);
+					
 			}while(alive);	
 		}
 		

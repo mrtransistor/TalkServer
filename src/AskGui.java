@@ -18,11 +18,15 @@ public class AskGui {
 	String tempNameOfFrame = "";
 	String questionString = "";
 	String sessionPw;
+	String defaultValue = "";
 	
-	public AskGui(String nameOfFrame, String questionToUser) {
+	public AskGui(String nameOfFrame, String questionToUser, String defaultValue) {
 		tempNameOfFrame = nameOfFrame;
 		questionString = questionToUser;
+		System.out.println("Huhu:" + defaultValue);
+		this.defaultValue = defaultValue;
 		sessionPw = askUser();
+
 	}
 	
 	public String askUser() {
@@ -31,7 +35,7 @@ public class AskGui {
 			askFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 			askLabel = new JLabel(questionString);
 			answerTextField = new JTextField();
-			answerTextField.setText("localhost");
+			answerTextField.setText(this.defaultValue);
 			answerTextField.addActionListener(
 					new ActionListener() {
 						public void actionPerformed(ActionEvent event){
@@ -49,8 +53,7 @@ public class AskGui {
 			askFrame.setLocation(175, 150);
 			askFrame.setVisible(true);
 			System.out.println(askFrame.isActive());
-			boolean isEmpty = true;
-			while(isEmpty = answerOfUser.isEmpty()) { //System.out.println("Leer: " + hostAddress.isEmpty());
+			while(answerOfUser.isEmpty()) { //System.out.println("Leer: " + hostAddress.isEmpty());
 			try {
 				Thread.sleep(100);
 			} catch (InterruptedException e) {

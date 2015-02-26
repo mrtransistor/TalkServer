@@ -12,6 +12,7 @@ public class TasksToDo {
 
 // VERBINDUNG/NETZWERK
 - Krypto mit AES im Idealfall
+- Direkt nach Texteingabe des Users auf Ascii 0 - 32 ueberpruefen
 - Mehrfach Substitution abschalten!
 - Passwortübertragung verschlüsselt umbauen
 

@@ -6,6 +6,7 @@ import javax.swing.*;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.List;
 
 public class TalkServer {
 	
@@ -15,13 +16,15 @@ public class TalkServer {
 	/**ServerSocket Object */
 	private ServerSocket serverConnectionListener;
 	//Hashtabelle der die Verbundenen Clients hält
-	private Hashtable outputStreams = new Hashtable();
+	public Hashtable outputStreams = new Hashtable();
 	//Object zur ServerGui Generierung.
 	ServerGui chatGui;
 	//Object zur AdminWindow Generierung
 	AdminWindow adminWindow;
 	//Server Kryptomodul
 	KryptoServer serverKrypto;
+	//Liste der angemeldeten Clientnamen
+	List<String> nameList = new ArrayList<String>();
 	//Globaler SubKey
 	BigInteger globalKey;
 	//set PasswordGUI 
@@ -30,6 +33,10 @@ public class TalkServer {
 	AskUserYesNo killHostPrompt;
 	//session Pw
 	String sessionPW;
+	
+	//Hashtable haelt Namen assoziiert mit jeweiligem Outputstream
+	public Hashtable NameToClient = new Hashtable();
+	
 	//RSA-Modul zur verschuesselten PW-Uebermittelung
 	RSAModule pwRSA ;
 	
@@ -46,11 +53,13 @@ public class TalkServer {
 	 */
 	public TalkServer(int serverListenPort) throws IOException {
 		//Password setzen
-		passwordGUI = new AskGui("Passwort setzen", "Session Passwort(leer = kein PW):");
+		passwordGUI = new AskGui("Passwort setzen", "Session Passwort(leer = kein PW):", "test");
 		//session Passwort holen
 		sessionPW = passwordGUI.answerOfUser;
+		passwordGUI = null;
 		//ServerGui zeichnen
 		chatGui = new ServerGui(); 
+		
 		//AdminWindow zeichnen
 		adminWindow = new AdminWindow();
 		//Passwort anzeigen
@@ -61,6 +70,7 @@ public class TalkServer {
 		serverKrypto = new KryptoServer(adminWindow);
 		//ListenThread für Verbindungen zu Server
 		aufVerbindungWarten(serverListenPort);
+		
 	}
 
 	/**aufVerbindungenWarten() lauscht auf dem Serversocket bis eine Verbindung vom 
@@ -120,6 +130,24 @@ public class TalkServer {
 			//Nachricht anzeigen n Chatgui
 			//chatGui.showMessage(message);
 		}
+	}
+	
+	/**
+	 * public void sendToAll(String message) throws IOException konsumiert
+	 * Nachricht vom Typ String und flusht diese an alle Clients über Verbindung
+	 * aus outputStreams vom Typ Enumeration
+	 * @param message
+	 * @throws IOException
+	 */
+	public void sendToExplicitClient(Socket client, String message) throws IOException {
+		//Outputstream for flushing to Clients
+		ObjectOutputStream os;
+		//Synchronisiert um Zugriff auf outputStreams mit anderen Threads zu verhindern z.B. deleteConnection(Socket connectionToKill)
+		synchronized(outputStreams) {
+				os = (ObjectOutputStream) outputStreams.get(client);
+				os.writeObject(message);
+				os.flush();
+			}
 	}
 	
 	
