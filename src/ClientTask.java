@@ -22,7 +22,6 @@ import java.net.SocketException;
 		private final TalkServer server;
 		/**ObjectOutputStream für RSA Uebermittelung */
 		private ObjectOutputStream exclusiveOutputStreamToClient;
-		
 		/**InputStream für Clientverindung */
 		ObjectInputStream sessionInputStream;
 		/**KryptoServer clientKrypto*/
@@ -33,6 +32,8 @@ import java.net.SocketException;
 		String userName = "default";
 		//Game
 		String opponentsName = "";
+		//ServerSocket Nummer
+		int serverSocketNo;
 		
 		/** Konstruktor */
 		public ClientTask(TalkServer serverObject, Socket clientSocket, ObjectOutputStream exclusiveOutputStream) {
@@ -161,35 +162,24 @@ import java.net.SocketException;
 				//Nachricht verschlüsselt ? 
 				if(inputMessage.startsWith("cr1")) {
 					//VERSCHLUESSELTE BEHANDLUNG
-					//Entschluesseln der Nachricht zum anzeigen
-					decryptedInfo = server.serverKrypto.decryptMessage(inputMessage.substring(3),1);
-					tempForeignClientName = decryptedInfo.substring(16 + userName.length(), decryptedInfo.indexOf('$'));
-					if(server.NameToClient.containsKey(tempForeignClientName)) {
-						tempGameName = decryptedInfo.substring(16+userName.length() + tempForeignClientName.length() + 1);
-						switch(tempGameName) {
-							case "pong" : {
-								server.sendToExplicitClient((Socket) server.NameToClient.get(tempForeignClientName), userName+"$pong");
-								
-							}break;
-						}
-					}else {
-						//Nachricht unverschluesselt anzeigen
-						server.chatGui.showMessage(decryptedInfo);
+					//Entschluesseln der Nachricht zum anzeigen			
+						server.chatGui.showMessage(server.serverKrypto.decryptMessage(inputMessage.substring(3),1));
 						//Nachricht an alle Clients weiterreichen und anzeigen
 						server.sendToAll(inputMessage);
-					}
 				}else{ //UNVERSCHLUESSELTE BEHANDLUNG
 					
 					if(inputMessage.length() > 5 && (inputMessage.startsWith("@play") || inputMessage.startsWith("@response")) ) {
+						System.out.println("IN: " + inputMessage);
+						
 						if(inputMessage.startsWith("@play")) {
 							tempForeignClientName = inputMessage.substring(5, inputMessage.indexOf('$'));
-							System.out.println("foreigClientName: " + tempForeignClientName);
+							System.out.println("foreignClientName: " + tempForeignClientName);
 							if(server.NameToClient.containsKey(tempForeignClientName)) {
 								tempGameName = inputMessage.substring(inputMessage.indexOf('$')+1);
 								System.out.println("GameName:" + tempGameName);
 								switch(tempGameName) {
 									case "pong" : {
-									server.sendToExplicitClient((Socket) server.NameToClient.get(tempForeignClientName), "@play" + userName+"$pong");
+									server.sendToExplicitClient((Socket) server.NameToClient.get(tempForeignClientName), "@play" + userName+"$pong"+"%"+ String.valueOf(server.newServerListenPort+1));
 									}break;
 								}
 							}
@@ -197,19 +187,26 @@ import java.net.SocketException;
 						
 						if(inputMessage.startsWith("@response")) {
 							tempResponse = inputMessage.substring(9, inputMessage.indexOf('$'));
+							
 							System.out.println("tempResponse: " + tempResponse);
 							if(tempResponse.equals("true")) {
 								opponentsName = inputMessage.substring(inputMessage.indexOf('&')+1);
 								System.out.println("opponentsName: " + opponentsName);
-								inputMessage = inputMessage.substring(0, inputMessage.indexOf('&')) + userName;
-								server.sendToExplicitClient((Socket) server.NameToClient.get(opponentsName), inputMessage);
-								//SPIELSTARTEN "PONG"
+								server.newServerListenPort += 1; //ServerListenPorts fuer Games erhoehen
+								//SPIELVERWALTUNG WIRD PARALLEL GESTARTET
+								System.out.println("Spielverwaltung startet");
+								//Spielverwaltung starten
+								new Thread (new PongLogic(server, server.newServerListenPort, this.userName, this.opponentsName)).start();
+								System.out.println("An Client weiterleiten " + opponentsName);
+								server.sendToExplicitClient((Socket) server.NameToClient.get(opponentsName), inputMessage+"%"+ String.valueOf(server.newServerListenPort));
+
 							}else {
 								opponentsName = inputMessage.substring(inputMessage.indexOf('&')+1);
 								server.sendToExplicitClient((Socket) server.NameToClient.get(opponentsName), inputMessage);
 							}
 						}
 					}else {	
+						System.out.println("TEST");
 						//Nachricht unerverschluesselt anzeigen
 						server.chatGui.showMessage(inputMessage);
 						//Nachricht an alle Clients weiterreichen und anzeigen

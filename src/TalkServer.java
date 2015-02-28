@@ -33,12 +33,13 @@ public class TalkServer {
 	AskUserYesNo killHostPrompt;
 	//session Pw
 	String sessionPW;
-	
 	//Hashtable haelt Namen assoziiert mit jeweiligem Outputstream
 	public Hashtable NameToClient = new Hashtable();
-	
 	//RSA-Modul zur verschuesselten PW-Uebermittelung
 	RSAModule pwRSA ;
+	//serverPortCounter
+	int newServerListenPort;
+	
 	
 	/**ExecutorService für ClientThreads*/
 	//final ExecutorService clientProcessingPool = Executors.newFixedThreadPool(10);
@@ -59,7 +60,8 @@ public class TalkServer {
 		passwordGUI = null;
 		//ServerGui zeichnen
 		chatGui = new ServerGui(); 
-		
+		//ServerlistenPort setzen
+		this.newServerListenPort = serverListenPort+1;
 		//AdminWindow zeichnen
 		adminWindow = new AdminWindow();
 		//Passwort anzeigen
@@ -127,9 +129,30 @@ public class TalkServer {
 				os.writeObject(message);
 				os.flush();
 			}
-			//Nachricht anzeigen n Chatgui
-			//chatGui.showMessage(message);
 		}
+	}
+	
+	/**
+	 * 
+	 * @param client1
+	 * @param client2
+	 * @param message
+	 * @throws IOException
+	 */
+	public void sendToGamingClients(Socket client1, Socket client2, String message) throws IOException {
+				//Outputstream for flushing to Clients
+				ObjectOutputStream os;
+				//Synchronisiert um Zugriff auf outputStreams mit anderen Threads zu verhindern z.B. deleteConnection(Socket connectionToKill)
+				synchronized(outputStreams) {
+						os = (ObjectOutputStream) outputStreams.get(client1);
+						//Spieldaten an Client1 uebertragen
+						os.writeObject(message);
+						os.flush();
+						//Spieldaten an Client2 uebertragen
+						os = (ObjectOutputStream) outputStreams.get(client2);
+						os.writeObject(message);
+						os.flush();
+					}
 	}
 	
 	/**
@@ -145,6 +168,7 @@ public class TalkServer {
 		//Synchronisiert um Zugriff auf outputStreams mit anderen Threads zu verhindern z.B. deleteConnection(Socket connectionToKill)
 		synchronized(outputStreams) {
 				os = (ObjectOutputStream) outputStreams.get(client);
+				//Daten an expliziten Client senden
 				os.writeObject(message);
 				os.flush();
 			}
